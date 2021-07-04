@@ -12,7 +12,8 @@ class TodoListModel extends ChangeNotifier {
   final String _rpcUrl = "http://192.168.0.103:7545";
   final String _wsUrl = "ws://192.168.0.103:7545/";
 
-  final String _privateKey = "5dfa9e15caabb7a70ecde735119337eea43fe7874c75b41c68dfa810c5d88384";
+  //final String _privateKey = "5dfa9e15caabb7a70ecde735119337eea43fe7874c75b41c68dfa810c5d88384";
+  final String _privateKey = "092f7460828b06f09efc08cc3214e28ee558b77c659b697cdccdb6166f1e0c2a";
   final String _myWalletAdr = "x750A04854a99C4c5DD4143485C1ccec854c15E17";
   int taskCount = 0;
   Web3Client _client;
@@ -26,14 +27,16 @@ class TodoListModel extends ChangeNotifier {
   ContractFunction _tokenOfOwnerByIndex;
   ContractFunction _balanceOf;
   ContractFunction _createTask;
+  ContractFunction _transferFrom;
   ContractEvent _taskCreatedEvent;
 
   TodoListModel() {
     initiateSetup();
   }
 
-  Future<void> getAddress(String value) async{
+  EthereumAddress getAddress(String value){
     EthereumAddress address = EthereumAddress.fromHex(value);
+    return address;
   }
 
   Future<void> initiateSetup() async {
@@ -86,6 +89,7 @@ class TodoListModel extends ChangeNotifier {
     _todos = _contract.function("colors");
     _balanceOf = _contract.function("balanceOf");
     _tokenOfOwnerByIndex = _contract.function("tokenOfOwnerByIndex");
+    _transferFrom = _contract.function("transferFrom");
     //_taskCreatedEvent = _contract.event("TaskCreated");
     //getTodos();
     //getTokenInventory();
@@ -111,6 +115,7 @@ class TodoListModel extends ChangeNotifier {
       print("tempIndex: ${tempIndex[0]}");
       //print("tempIndex: ${tempIndex[0]}");
       var auxIndex = tempIndex[0]-BigInt.from(1);
+      print("auxIndex: ${auxIndex}");
       var temp = await _client.call(
           contract: _contract,
           function: _todos,
@@ -120,34 +125,7 @@ class TodoListModel extends ChangeNotifier {
       todos.add(
           Task(
               taskName: temp[0],
-              isCompleted: false
-          )
-      );
-    }
-    isLoading = false;
-    notifyListeners();
-  }
-
-  Future<void> getTodos() async {
-    List totalTasksList = await _client.call(
-          contract: _contract,
-          function: _taskCount,
-          params: []
-    );
-    BigInt totalTasks = totalTasksList[0];
-    taskCount = totalTasks.toInt();
-    print(totalTasks);
-    todos.clear();
-    for (var i = 0; i < totalTasks.toInt(); i++) {
-      var temp = await _client.call(
-          contract: _contract,
-          function: _todos,
-          params: [BigInt.from(i)]
-      );
-      todos.add(
-          Task(
-              taskName: temp[0],
-              isCompleted: false
+              id: auxIndex
           )
       );
     }
@@ -173,13 +151,39 @@ class TodoListModel extends ChangeNotifier {
     //getTodos();
     getTokenInventory();
   }
+
+  Future<void> transfer(
+      String addressReceiver,
+      BigInt id
+  ) async {
+    //isLoading = true;
+    //notifyListeners();
+    print("id: $id addressReceiver: $addressReceiver");
+    await _client.sendTransaction(
+        _credentials,
+        Transaction.callContract(
+            contract: _contract,
+            function: _transferFrom,
+            parameters: [
+              _ownAddress,
+              getAddress(addressReceiver),
+              id+BigInt.from(1)
+            ],
+            gasPrice: EtherAmount.inWei(BigInt.one),
+            maxGas:600000
+        ),
+        fetchChainIdFromNetworkId: true
+    );
+    //getTodos();
+    getTokenInventory();
+  }
 }
 
 class Task {
   String taskName;
-  bool isCompleted;
+  BigInt id;
   Task({
     this.taskName,
-    this.isCompleted
+    this.id
   });
 }
